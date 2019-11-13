@@ -12,6 +12,12 @@
 #   See README.md
 #
 
+class systemd::daemon_reload {
+  exec { '/bin/systemctl daemon-reload':
+    refreshonly => true,
+  }
+}
+
 define druid::node (
   $config,
   $initscript,
@@ -19,6 +25,8 @@ define druid::node (
   $service_name = $title,
 ) {
   require ::druid
+
+  include ::systemd::daemon_reload
 
   validate_string(
     $config,
@@ -47,14 +55,21 @@ define druid::node (
     ensure  => file,
     mode    => '0755',
     content => $initscript,
+    notify => [
+      Class['systemd::daemon_reload'],
+      Service["druid-${service_name}"],
+    ],
   }
 
   service { "druid-${service_name}":
     ensure  => $ensure_node,
     enable  => true,
-    require => File[
-      "/etc/init.d/druid-${service_name}",
-      "${druid::config_dir}/${service_name}/runtime.properties"
+    require => [
+      File[
+        "/etc/init.d/druid-${service_name}",
+        "${druid::config_dir}/${service_name}/runtime.properties"
+      ],
+      Class['systemd::daemon_reload'],
     ],
   }
 }
